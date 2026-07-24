@@ -2,6 +2,7 @@
 
 Interactive chess analysis tool built with pygame — game tree exploration, engine evaluation, and bitboard-based motif detection for position understanding.
 
+Please note that the programming of this project is done on MacOS, thus some things might be MacOS specific
 ---
 
 ### Features
