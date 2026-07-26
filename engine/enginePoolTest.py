@@ -18,7 +18,7 @@ oversubscribing the machine. Tune num_engines / threads_per_engine to taste.
 import os
 
 from stockfishWrapper import StockfishEngine
-from engineBase import MoveEval
+from engineBase import MoveEval, _load_test_cases
 
 
 class EnginePool:
@@ -32,8 +32,7 @@ class EnginePool:
     ):
         """
         num_engines: how many Stockfish subprocesses to run in parallel.
-                     Defaults to min(4, cpu_count) — good starting point for
-                     a 10-core Apple Silicon machine; raise it if you're
+                     Defaults to min(4, cpu_count) — raise it if you're
                      analyzing many small/shallow positions, lower it if
                      you're running deep searches and want each engine to
                      have more threads instead.
@@ -54,7 +53,7 @@ class EnginePool:
         Runs best_move for each FEN in parallel. Returns results in the same
         order as input.
 
-        Each FEN is routed to one engine's *own* dedicated worker thread
+        Each FEN is routed to one engine's own dedicated worker thread
         (via best_move_async), round-robin by index — this is what keeps
         two tasks from ever running concurrently on the same underlying
         Stockfish process, which python-chess's SimpleEngine does not
@@ -95,9 +94,10 @@ class EnginePool:
 
 if __name__ == "__main__":
     import time
-    from stockfishWrapper import _load_test_cases, StockfishEngine
+    from stockfishWrapper import StockfishEngine
 
     cases = _load_test_cases()
+    num_cases = len(cases)
     fens = [fen for fen, _, _ in cases]
 
     # sequential, single engine
@@ -113,5 +113,5 @@ if __name__ == "__main__":
         pool.best_move_many(fens)
     parallel_time = time.perf_counter() - t0
 
-    print(f"Sequential ({len(fens)} positions, 1 engine):  {sequential_time:.2f}s")
-    print(f"Parallel   ({len(fens)} positions, {min(4, os.cpu_count() or 4)} engines): {parallel_time:.2f}s")
+    print(f"Sequential ({len(fens)} positions, 1 engine):  {sequential_time:.2f}s; Average time spend per position: {sequential_time / num_cases:.2f}s")
+    print(f"Parallel   ({len(fens)} positions, {min(4, os.cpu_count() or 4)} engines): {parallel_time:.2f}s; Average time spend per position: {sequential_time / num_cases:.2f}s")
