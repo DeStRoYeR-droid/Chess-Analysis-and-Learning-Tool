@@ -1,6 +1,8 @@
 # GUI configutations
 WIDTH = 1200
 HEIGHT = 800
+TITLE = "Chess Analysis and Learning Tool"
+ICON_FILE = "./assets/calt-logo.png"
 
 # Board layout
 BOARD_PADDING = 50  # distance from the top and left edges of the window

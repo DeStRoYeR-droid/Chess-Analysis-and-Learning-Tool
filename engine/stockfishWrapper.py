@@ -242,16 +242,16 @@ class StockfishEngine(Engine):
  
  
 if __name__ == "__main__":
-    cases = _load_test_cases()
+    cases = _load_test_cases()[:10]
     with StockfishEngine() as sf:
         for fen, depth, k in cases:
-            print("=" * 60)
-            print(f"FEN: {fen}")
-            print(f"best_move: {sf.best_move(fen, depth=depth)}")
-            print(f"top_moves (k={k}):")
+            print ("=" * 60)
+            print (f"FEN: {fen}")
+            print (f"best_move: {sf.best_move(fen, depth=depth)}")
+            print (f"top_moves (k={k}):")
             for mv in sf.top_moves(fen, k=k, depth=depth):
                 print(f"  {mv}")
-            print("move_tree (plies=3):")
+            print ("move_tree (plies=3):")
             tree = sf.move_tree(fen, plies=3, k=k, depth=depth)
             print_tree(tree)
-            print("\n\n\n")
+            print ("\n\n\n")

@@ -2,17 +2,19 @@ import pygame
 import os
 import chess
 from core.constants import *
+from core.board import Board
 
-THEME = "black-and-white-figma"
+THEME_FOLDER = "black-and-white-figma"
 
 # Loading of image assets
-ASSET_FOLDER = f"./assets/pieces-{THEME}/"
+ASSET_FOLDER = f"./assets/pieces-{THEME_FOLDER}/"
 
 images = {}
 pygame.init()
 
+# Only png with transparent background are accepted
 for filename in os.listdir(ASSET_FOLDER):
-    if filename.endswith(('.png', '.jpg', '.jpeg', '.gif')):
+    if filename.endswith(('.png')): 
         key = os.path.splitext(filename)[0]
         images[key] = pygame.image.load(os.path.join(ASSET_FOLDER, filename))
 
@@ -24,15 +26,21 @@ piece_images = {
 # Setting up the pygame window
 WIDTH = WIDTH
 HEIGHT = HEIGHT
+ICON = pygame.image.load(ICON_FILE)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("My Pygame Window")
- 
-board = chess.Board()
+pygame.display.set_caption(TITLE)
+pygame.display.set_icon(ICON)
+
+# Game state lives in core.board.Board - all move validation/execution is
+# delegated there so it can be reused outside the GUI (autoplay, tree
+# generation, etc). This file only owns rendering and input handling.
+game = Board()
 
 BOARD_ORIGIN = (BOARD_PADDING, BOARD_PADDING)  # top-left corner of the board
 LIGHT_SQUARE = (240, 217, 181)
 DARK_SQUARE = (181, 136, 99)
 BACKGROUND = (30, 30, 30)
+
 
 def draw_board(surface):
     ox, oy = BOARD_ORIGIN
@@ -47,24 +55,21 @@ def draw_board(surface):
             )
             pygame.draw.rect(surface, color, rect)
 
-def draw_pieces(surface, board: chess.Board):
+
+def draw_pieces(surface, game: Board):
     """Blits each piece onto its square, oriented from White's perspective
     (rank 8 at the top, rank 1 at the bottom; file a on the left)."""
     ox, oy = BOARD_ORIGIN
-    for square in chess.SQUARES:
-        piece = board.piece_at(square)
-        if piece is None:
-            continue
- 
+    for square, piece in game.occupied_squares():
         file = chess.square_file(square)   # 0 (a) .. 7 (h)
         rank = chess.square_rank(square)   # 0 (rank 1) .. 7 (rank 8)
         visual_row = 7 - rank              # rank 8 drawn at the top
- 
+
         key = ("w" if piece.color == chess.WHITE else "b") + piece.symbol().upper()
         image = piece_images.get(key)
         if image is None:
             continue  # asset missing for this piece - skip rather than crash
- 
+
         pos = (ox + file * SQUARE_SIZE, oy + visual_row * SQUARE_SIZE)
         surface.blit(image, pos)
 
@@ -78,8 +83,8 @@ def square_center(square):
     cx = ox + file * SQUARE_SIZE + SQUARE_SIZE // 2
     cy = oy + visual_row * SQUARE_SIZE + SQUARE_SIZE // 2
     return cx, cy
- 
- 
+
+
 def pixel_to_square(pos):
     """Converts a mouse position to a chess.Square, or None if outside the board."""
     x, y = pos
@@ -90,17 +95,12 @@ def pixel_to_square(pos):
     visual_row = (y - oy) // SQUARE_SIZE
     rank = 7 - visual_row
     return chess.square(file, rank)
- 
- 
-def legal_moves_from(square):
-    """All legal chess.Move objects starting at `square`."""
-    return [move for move in board.legal_moves if move.from_square == square]
- 
- 
+
+
 SELECTED_HIGHLIGHT = (246, 246, 105)
 MOVE_DOT_COLOR = (60, 140, 60)
- 
- 
+
+
 def draw_selection(surface, selected_square, target_squares):
     if selected_square is not None:
         cx, cy = square_center(selected_square)
@@ -108,67 +108,54 @@ def draw_selection(surface, selected_square, target_squares):
         highlight = pygame.Surface((SQUARE_SIZE, SQUARE_SIZE), pygame.SRCALPHA)
         highlight.fill((*SELECTED_HIGHLIGHT, 120))
         surface.blit(highlight, rect.topleft)
- 
+
     dot_radius = SQUARE_SIZE // 6
     for square in target_squares:
         cx, cy = square_center(square)
         pygame.draw.circle(surface, MOVE_DOT_COLOR, (cx, cy), dot_radius)
- 
- 
+
+
 # Selection state: which square (if any) is currently clicked, and the
 # legal moves available from it (kept as full Move objects, not just
 # destination squares, so a click on a target can actually be played -
 # this matters for promotions, where one square can have 4 legal Moves
-# to it, one per promotion piece).
+# to it, one per promotion piece). This is UI state, not board state, so
+# it stays here rather than in core.board.
 selected_square = None
 legal_moves_from_selection = []
- 
- 
-def choose_move_to(moves, target_square):
-    """Given several legal Moves landing on the same square (only happens
-    with pawn promotion - one Move per promotion piece), pick which one to
-    actually play. Auto-promotes to queen for now; swap this out later if
-    you want a promotion-piece picker in the UI."""
-    matches = [m for m in moves if m.to_square == target_square]
-    if not matches:
-        return None
-    if len(matches) == 1:
-        return matches[0]
-    return next((m for m in matches if m.promotion == chess.QUEEN), matches[0])
- 
- 
+
+
 def handle_click(pos):
     global selected_square, legal_moves_from_selection
- 
+
     clicked = pixel_to_square(pos)
     if clicked is None:
         selected_square = None
         legal_moves_from_selection = []
         return
- 
+
     # a piece is already selected - if the click lands on one of its legal
-    # destinations, play the move
+    # destinations, play the move via core.board
     if selected_square is not None:
-        move = choose_move_to(legal_moves_from_selection, clicked)
+        move = game.try_move(selected_square, clicked)
         if move is not None:
-            board.push(move)
             selected_square = None
             legal_moves_from_selection = []
             return
- 
+
     if clicked == selected_square:
         # clicked the already-selected square again - deselect
         selected_square = None
         legal_moves_from_selection = []
         return
- 
-    piece = board.piece_at(clicked)
-    if piece is not None and piece.color == board.turn:
+
+    if game.is_own_piece(clicked):
         selected_square = clicked
-        legal_moves_from_selection = legal_moves_from(clicked)
+        legal_moves_from_selection = game.legal_moves_from(clicked)
     else:
         selected_square = None
         legal_moves_from_selection = []
+
 
 def main():
     running = True
@@ -178,16 +165,15 @@ def main():
             if (event.type == pygame.QUIT):
                 running = False
                 break
-
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 handle_click(event.pos)
 
-            screen.fill(BACKGROUND)
-            draw_board(screen)
-            draw_pieces(screen, board)
-            target_squares = {move.to_square for move in legal_moves_from_selection}
-            draw_selection(screen, selected_square, target_squares)
-
+        # Draw once per frame, not once per event
+        screen.fill(BACKGROUND)
+        draw_board(screen)
+        draw_pieces(screen, game)
+        target_squares = {move.to_square for move in legal_moves_from_selection}
+        draw_selection(screen, selected_square, target_squares)
 
         # Update the display
         pygame.display.flip()
