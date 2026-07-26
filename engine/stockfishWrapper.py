@@ -18,10 +18,17 @@ import concurrent.futures
 import chess
 import chess.engine
 
-from engineBase import Engine, MoveEval, _load_test_cases
+from engine.engineBase import Engine, MoveEval, _load_test_cases
 
 from dataclasses import dataclass, field
 
+try:
+    # works when imported as a package from outside engine/, e.g.
+    # `from engine.stockfishWrapper import ...` (as ui/debugInterface.py does)
+    from engine.engineBase import Engine, MoveEval, TEST_FILE
+except ImportError:
+    # works when run standalone from inside engine/, e.g. `python3 stockfishWrapper.py`
+    from engineBase import Engine, MoveEval, TEST_FILE
 
 # Common Homebrew install locations, checked in order if PATH lookup fails.
 _FALLBACK_PATHS = [

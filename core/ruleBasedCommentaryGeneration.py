@@ -98,6 +98,7 @@ class MaterialReport:
 
 @dataclass
 class PositionReport:
+    side_to_move: str          # "White" or "Black" - whose move it is in this position
     checks: list[str]
     captures: list[str]
     attacked_pieces: list[AttackedPieceReport]
@@ -340,6 +341,7 @@ def analyze_position(board: "chess.Board") -> PositionReport:
     checks, captures = _analyze_checks_and_captures(board)
     pawn_structure = _analyze_pawn_structure(board)
     return PositionReport(
+        side_to_move=_color_name(board.turn),
         checks=checks,
         captures=captures,
         attacked_pieces=_analyze_attacked_pieces(board),
@@ -360,7 +362,7 @@ def generate_commentary(board: "chess.Board") -> str:
         return game_over
 
     report = analyze_position(board)
-    sections = []
+    sections = [f"{report.side_to_move} to move."]
 
     # checks, captures, attacks
     lines = list(report.checks)
