@@ -20,14 +20,14 @@ Stockfish — position evaluation (UCI protocol)
 
 ---
 
-### Roadmap
-- [X] Generate the view 
-- [X] Set up chess engine in standardised format
-- [ ] Enable autoplay with stockfish
-- [ ] Have the ability to import games using [FEN string](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation)
-- [X] Apply engine + search on the game to generate a game-tree 
-- [ ] Generate rule based commentary of the various nodes of the game-tree for commentary generation aspect
-- [ ] Apply various search techniques to see for performance
+### Progress Tracker
+[X] Generate the view 
+[X] Set up chess engine in standardised format
+[ ] Enable autoplay with stockfish
+[ ] Have the ability to import games using [FEN string](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation)
+[X] Apply engine + search on the game to generate a game-tree 
+[ ] Generate rule based commentary of the various nodes of the game-tree for commentary generation aspect
+[ ] Apply various search techniques to see for performance
 
 --- 
 
