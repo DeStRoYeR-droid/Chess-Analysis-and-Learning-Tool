@@ -21,7 +21,7 @@ Stockfish — position evaluation (UCI protocol)
 ---
 
 ### Roadmap
-- [ ] Generate the view 
+- [X] Generate the view 
 - [X] Set up chess engine in standardised format
 - [ ] Enable autoplay with stockfish
 - [ ] Have the ability to import games using [FEN string](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation)
