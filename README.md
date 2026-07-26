@@ -14,8 +14,8 @@ Interactive chess analysis tool built with pygame — game tree exploration, eng
 - Engine evaluation via Stockfish
 
 ### Tech Stack
-pygame — rendering and input
-python-chess — board representation, move generation, PGN I/O
+pygame — rendering and input <br>
+python-chess — board representation, move generation, PGN I/O <br>
 Stockfish — position evaluation (UCI protocol)
 
 ---
