@@ -86,7 +86,7 @@ def classify_move_quality(delta_cp: float | None) -> str:
     return "blunder"
 
 
-def print_board(board: chess.Board, label: str) -> None:
+def print_board(board: chess.Board, label: str, empty_square: str = " ") -> None:
     print(f"\n{label}")
     print(board.unicode(borders=True, empty_square="."))
     print(f"FEN: {board.fen()}")

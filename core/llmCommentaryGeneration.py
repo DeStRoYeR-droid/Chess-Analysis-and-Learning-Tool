@@ -49,7 +49,7 @@ except ImportError:
     )
     raise
 
-MAX_TOKENS = 1600
+MAX_TOKENS = 32768
 TEMPERATURE = 1
  
 OMLX_BASE_URL = os.getenv("OMLX_BASE_URL", "http://localhost:8000/v1")
@@ -57,7 +57,7 @@ OMLX_API_KEY = os.getenv("OMLX_API_KEY")
 CURRENT_PROMPT_IDX = 1
 
 PROMPT_FILE = PROMPT_FOLDER_PATH + f"/prompt{CURRENT_PROMPT_IDX}.txt"
-_PLACEHOLDER = "[PASTE debugInterface.py JSON OUTPUT HERE]"
+_PLACEHOLDER = "[PASTE JSON OUTPUT HERE]"
 
 _client = None  # cached connection, set on first get_client() call
  
@@ -76,7 +76,7 @@ def get_client() -> OpenAI:
         _client = OpenAI(base_url=OMLX_BASE_URL, api_key=OMLX_API_KEY)
     return _client
 
-def build_prompt(analysis_json: dict, prompt_index: int) -> str:
+def build_prompt(analysis_json: str, prompt_index: int) -> str:
     """
     Fills the placeholder in core/prompts/prompt-<prompt_index>.txt with the
     actual JSON payload. Assumes prompt_index refers to an existing file -
@@ -85,6 +85,8 @@ def build_prompt(analysis_json: dict, prompt_index: int) -> str:
     prompt_path = Path(PROMPT_FOLDER_PATH) / f"prompt-{prompt_index}.txt"
     template = prompt_path.read_text()
     json_text = json.dumps(analysis_json, indent=2)
+
+
     return template.replace(_PLACEHOLDER, json_text)
 
 def build_prompt(analysis_json: dict, prompt_index: int = CURRENT_PROMPT_IDX) -> str:
@@ -143,11 +145,28 @@ def generate_commentary_text(analysis_json: dict, prompt_index: int = CURRENT_PR
  
     return "".join(chunks)
 
+def generate_from_output_file(prompt_index: int, output_filename: str = "output.json") -> str:
+    """
+    Convenience wrapper: reads the analysis JSON from output.json (project
+    root - one level up from core/) and runs it through
+    generate_commentary_text().
+ 
+    Pass a different output_filename if debugInterface.py's output ever
+    lives somewhere other than the project root, or under a different name.
+    """
+    output_path = Path(__file__).resolve().parent.parent / output_filename
+    if not output_path.exists():
+        raise FileNotFoundError(
+            f"Couldn't find {output_path}. Make sure debugInterface.py's "
+            f"JSON output has been saved there (e.g. "
+            f"`python3 ui/debugInterface.py > {output_filename}`), or pass "
+            f"a different output_filename."
+        )
+ 
+    with open(output_path) as f:
+        analysis_json = json.load(f)
+ 
+    return generate_commentary_text(analysis_json, prompt_index)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python3 core/llmCommentaryGeneration.py <path-to-analysis.json> <prompt_index>")
-        sys.exit(1)
-    with open(sys.argv[1]) as f:
-        analysis = json.load(f)
-    generate_commentary_text(analysis, int(sys.argv[2]))
+    generate_from_output_file(prompt_index=1)

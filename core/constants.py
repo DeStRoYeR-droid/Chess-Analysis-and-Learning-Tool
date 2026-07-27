@@ -17,4 +17,4 @@ TOP_K = 5           # 5 x 5 => 25 nodes in the tree.
 
 # LLM Specific
 PROMPT_FOLDER_PATH = "../core/prompts"
-LLM_MODEL = "Qwen3.5-9B-4bit"
+LLM_MODEL = "gemma-4-e4b-it-qat-OptiQ-4bit"

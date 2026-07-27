@@ -34,3 +34,5 @@ Only reference moves that actually appear in the JSON - don't invent lines.
 If the position is already decided (checkmate/draw noted in a commentary field), just say so plainly instead of doing move analysis.
 
 Now here is the position and analysis:
+
+[PASTE JSON OUTPUT HERE]
