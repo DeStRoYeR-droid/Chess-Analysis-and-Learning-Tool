@@ -23,7 +23,11 @@ import json
 import os
 import sys
 from pathlib import Path
-from constants import *
+
+try:
+    from core.constants import *
+except ImportError:
+    from constants import *
  
 try:
     from dotenv import load_dotenv
