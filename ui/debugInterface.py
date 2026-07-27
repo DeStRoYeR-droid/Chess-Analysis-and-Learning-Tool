@@ -10,7 +10,7 @@ Flow:
   3. Stockfish computes its own best move from the *original* (pre-move)
      FEN, and reports whether it matches your move (isOptimal).
   4. Two move trees are generated with StockfishEngine.move_tree
-     (depth=22, plies=5, top_k=5):
+     (depth=18, plies=5, top_k=5):
        - "player_line_tree", rooted at the position after YOUR move
        - "engine_line_tree", rooted at the position after the ENGINE's
          best move
@@ -29,12 +29,61 @@ import sys
 
 import chess
 
-from engine.stockfishWrapper import StockfishEngine, TreeNode
+from engine.stockfishWrapper import StockfishEngine, TreeNode, MATE_SCORE
 from core.ruleBasedCommentaryGeneration import generate_commentary
+from core.llmCommentaryGeneration import generate_commentary_text
+from core.constants import *
 
-STOCKFISH_DEPTH = 18
-TREE_PLIES = 3
-TOP_K = 3
+
+def result_eval_white(tree_root: TreeNode, resulting_board: chess.Board) -> float | None:
+    """
+    'Effective' evaluation (White-perspective, mate-aware) of the position
+    immediately after a move was played - i.e. of `tree_root`'s own
+    position, not any of its descendants.
+
+    move_tree()'s root node never carries its own eval (Stockfish scores
+    are attached to moves, and the root represents "no move played yet"),
+    so this is reconstructed from context:
+      - if the position is already game-over (the move delivered mate, or
+        stalemated the opponent), that outcome is used directly
+      - otherwise, the position's value is approximated by its best reply
+        (children[0]) - which is exactly what "the value of this position"
+        means under best play
+    """
+    if resulting_board.is_checkmate():
+        # side to move here has been mated -> huge value in favor of
+        # whoever just moved (the mating side)
+        winner_is_white = not resulting_board.turn
+        return MATE_SCORE if winner_is_white else -MATE_SCORE
+    if resulting_board.is_game_over():
+        return 0.0  # stalemate / other draw
+    if not tree_root.children:
+        return None  # shouldn't normally happen if the position isn't over
+    return tree_root.children[0].effective_eval_white()
+
+
+def classify_move_quality(delta_cp: float | None) -> str:
+    """
+    Maps a move-quality delta (mover's own perspective; <= 0 by
+    construction, since the engine's own move is never worse than any
+    alternative) to a plain-language label. This is what makes a blunder
+    register as a blunder even when the resulting position is still
+    winning overall - it measures what THIS move cost relative to the
+    engine's top choice, not the absolute eval of the position afterward.
+    Thresholds are approximate (loosely modeled on how sites like
+    lichess/chess.com bucket move quality) - tune freely.
+    """
+    if delta_cp is None:
+        return "unknown"
+    if delta_cp >= -10:
+        return "best"
+    if delta_cp >= -50:
+        return "good"
+    if delta_cp >= -100:
+        return "inaccuracy"
+    if delta_cp >= -300:
+        return "mistake"
+    return "blunder"
 
 
 def print_board(board: chess.Board, label: str) -> None:
@@ -100,7 +149,7 @@ def serialize_tree(node: TreeNode, board: chess.Board) -> dict:
 def main():
     board = read_fen()
     print_board(board, "Input position")
-
+    print (f"Your legal moves are {board.legal_moves}")
     player_move = read_move(board)
     player_move_san = board.san(player_move)
 
@@ -128,17 +177,42 @@ def main():
         print("Building move tree for the engine's line...")
         engine_tree = sf.move_tree(board_after_engine.fen(), plies=TREE_PLIES, k=TOP_K, depth=STOCKFISH_DEPTH)
 
+    # How much did the player's specific move cost, compared to the
+    # engine's top choice, at the SAME ply depth (one move deep from the
+    # input position) - independent of whether the resulting position is
+    # still winning overall. This is what stops "still winning" from
+    # masking "just blundered a piece."
+    mover_is_white = (board.turn == chess.WHITE)
+    player_result = result_eval_white(player_tree, board_after_player)
+    engine_result = result_eval_white(engine_tree, board_after_engine)
+
+    move_delta_cp = None
+    if player_result is not None and engine_result is not None:
+        raw_diff = player_result - engine_result  # White-perspective
+        move_delta_cp = raw_diff if mover_is_white else -raw_diff
+    move_quality = classify_move_quality(move_delta_cp)
+
+    print(f"\nMove quality: {move_quality} (delta: {move_delta_cp})")
+
     output = {
         "input_fen": board.fen(),
+        "user_color": "WHITE" if board.turn == chess.WHITE else "BLACK",
         "player_move": {"san": player_move_san, "uci": player_move.uci()},
         "engine_best_move": {"san": engine_best_san, "uci": engine_best_uci},
         "is_optimal": is_optimal,
+        "move_delta_cp": move_delta_cp,
+        "move_quality": move_quality,
         "player_line_tree": serialize_tree(player_tree, board_after_player),
         "engine_line_tree": serialize_tree(engine_tree, board_after_engine),
     }
 
     print("\n" + "=" * 70)
-    print(json.dumps(output, indent=2))
+    # print(json.dumps(output, indent=2))
+    with open("./output.json", "w") as outputFile:
+        json.dump(output, outputFile, indent=2)
+    print ("Output written to output.json")
+    generate_commentary_text(output)
+    
 
 
 if __name__ == "__main__":

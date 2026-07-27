@@ -18,10 +18,6 @@ import concurrent.futures
 import chess
 import chess.engine
 
-from engine.engineBase import Engine, MoveEval, _load_test_cases
-
-from dataclasses import dataclass, field
-
 try:
     # works when imported as a package from outside engine/, e.g.
     # `from engine.stockfishWrapper import ...` (as ui/debugInterface.py does)
@@ -29,6 +25,9 @@ try:
 except ImportError:
     # works when run standalone from inside engine/, e.g. `python3 stockfishWrapper.py`
     from engineBase import Engine, MoveEval, TEST_FILE
+
+from dataclasses import dataclass, field
+
 
 # Common Homebrew install locations, checked in order if PATH lookup fails.
 _FALLBACK_PATHS = [
@@ -49,6 +48,11 @@ def _find_stockfish() -> str:
         "stockfish`, or pass an explicit path to StockfishEngine(path=...)."
     )
 
+MATE_SCORE = 100_000  # sentinel magnitude standing in for a forced mate, so mate lines
+                       # can still be compared/diffed against cp-scored lines instead of
+                       # just returning None
+
+
 @dataclass
 class TreeNode:
     san: str | None                 # None only for the synthetic root node
@@ -64,28 +68,50 @@ class TreeNode:
         move_eval.score_cp is POV of whoever *made* this move, which flips
         every ply — so it can't be compared directly across nodes at
         different depths. This normalizes it so parent and child evals live
-        on the same scale.
+        on the same scale. Returns None for forced-mate scores (no cp
+        value exists) - use effective_eval_white() if you need a value
+        that works across mate lines too.
         """
         if self.move_eval is None or self.move_eval.score_cp is None:
             return None
         return self.move_eval.score_cp if self.mover_is_white else -self.move_eval.score_cp
 
-    def eval_delta_cp(self) -> int | None:
+    def effective_eval_white(self) -> float | None:
         """
-        Centipawn swing from the parent node's evaluation to this node's,
-        both normalized to White's perspective. This is the "context passed
-        from node to node" — how much the position's assessment changed as
-        a result of this move. None if either side is a forced-mate score,
-        or if the parent has no evaluation of its own to compare against
-        (e.g. this is a direct child of the tree's root).
+        Like eval_cp_white(), but forced-mate scores are mapped to a very
+        large signed value (± MATE_SCORE, closer to zero the longer the
+        mate takes) instead of returning None. This lets comparisons and
+        deltas stay meaningful even when one side of the comparison is a
+        mate line rather than a plain cp score - a forced mate should
+        obviously outweigh any ordinary cp evaluation.
+        """
+        if self.move_eval is None:
+            return None
+        if self.move_eval.mate_in is not None:
+            raw = MATE_SCORE - abs(self.move_eval.mate_in) * 100
+            raw *= 1 if self.move_eval.mate_in > 0 else -1
+        elif self.move_eval.score_cp is not None:
+            raw = self.move_eval.score_cp
+        else:
+            return None
+        return raw if self.mover_is_white else -raw
 
-        Later, this is what rule-based commentary will threshold against
-        (e.g. "drop of 150+ cp for the mover = inaccuracy/blunder").
+    def eval_delta_cp(self) -> float | None:
+        """
+        Swing from the parent node's evaluation to this node's, both
+        normalized to White's perspective and mate-aware (via
+        effective_eval_white()) so deltas remain meaningful even across a
+        transition into/out of a forced-mate line. None only if the parent
+        has no evaluation of its own to compare against (e.g. this is a
+        direct child of the tree's root).
+
+        This is what rule-based commentary thresholds against (e.g. "drop
+        of 150+ cp for the mover = inaccuracy/blunder").
         """
         if self.parent is None:
             return None
-        my_eval = self.eval_cp_white()
-        parent_eval = self.parent.eval_cp_white()
+        my_eval = self.effective_eval_white()
+        parent_eval = self.parent.effective_eval_white()
         if my_eval is None or parent_eval is None:
             return None
         return my_eval - parent_eval
@@ -140,7 +166,7 @@ class StockfishEngine(Engine):
         # independent positions, use EnginePool instead (engine_pool.py).
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
  
-    def best_move(self, fen_string: str, depth: int | None = None) -> str:
+    def best_move(self, fen_string: str, depth: int = 18) -> str:
         """Returns the best move from the position, in UCI format (e.g. 'e2e4')."""
         board = chess.Board(fen_string)
         if board.is_game_over():
@@ -246,19 +272,29 @@ class StockfishEngine(Engine):
                 if not next_board.is_game_over():
                     self._populate_children(child, next_board, plies - 1, k, depth)
  
+def _load_test_cases(path: str = TEST_FILE) -> list[tuple[str, int, int]]:
+    cases = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fen, depth, k = [part.strip() for part in line.split("|")]
+            cases.append((fen, int(depth), int(k)))
+    return cases
  
  
 if __name__ == "__main__":
-    cases = _load_test_cases()[:10]
+    cases = _load_test_cases()
     with StockfishEngine() as sf:
         for fen, depth, k in cases:
-            print ("=" * 60)
-            print (f"FEN: {fen}")
-            print (f"best_move: {sf.best_move(fen, depth=depth)}")
-            print (f"top_moves (k={k}):")
+            print("=" * 60)
+            print(f"FEN: {fen}")
+            print(f"best_move: {sf.best_move(fen, depth=depth)}")
+            print(f"top_moves (k={k}):")
             for mv in sf.top_moves(fen, k=k, depth=depth):
                 print(f"  {mv}")
-            print ("move_tree (plies=3):")
+            print("move_tree (plies=3):")
             tree = sf.move_tree(fen, plies=3, k=k, depth=depth)
             print_tree(tree)
-            print ("\n\n\n")
+            print("\n\n\n")

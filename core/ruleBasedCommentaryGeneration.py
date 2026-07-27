@@ -99,6 +99,7 @@ class MaterialReport:
 @dataclass
 class PositionReport:
     side_to_move: str          # "White" or "Black" - whose move it is in this position
+    move_played: str | None    # description of the move that led to this position, or None at a tree root
     checks: list[str]
     captures: list[str]
     attacked_pieces: list[AttackedPieceReport]
@@ -318,6 +319,42 @@ def _analyze_material(board: chess.Board) -> MaterialReport:
     return MaterialReport(white_total, black_total, white_total - black_total)
 
 
+def describe_move(board_before: chess.Board, move: chess.Move, board_after: chess.Board) -> str:
+    """
+    Plain-language description of what a move actually did, e.g.
+    "Black rook on b3 captures the white pawn on b2." Requires the board
+    *before* the move (so the captured piece/mover are still readable) and
+    the board *after* (to report check/checkmate).
+    """
+    mover = board_before.piece_at(move.from_square)
+    color_name = _color_name(mover.color)
+    piece_name = chess.piece_name(mover.piece_type)
+    from_sq = chess.square_name(move.from_square)
+    to_sq = chess.square_name(move.to_square)
+
+    if board_before.is_castling(move):
+        side = "kingside" if chess.square_file(move.to_square) == 6 else "queenside"
+        desc = f"{color_name} castles {side}."
+    elif board_before.is_en_passant(move):
+        desc = f"{color_name} {piece_name} on {from_sq} captures en passant on {to_sq}."
+    elif board_before.is_capture(move):
+        captured = board_before.piece_at(move.to_square)
+        captured_name = _piece_name(captured) if captured else "piece"
+        desc = f"{color_name} {piece_name} on {from_sq} captures the {captured_name} on {to_sq}."
+    else:
+        desc = f"{color_name} {piece_name} moves from {from_sq} to {to_sq}."
+
+    if move.promotion:
+        desc += f" Promotes to {chess.piece_name(move.promotion)}."
+
+    if board_after.is_checkmate():
+        desc += " Checkmate."
+    elif board_after.is_check():
+        desc += " Check."
+
+    return desc
+
+
 # ---- top-level API ------------------------------------------------------------------------
 
 def _game_over_message(board: chess.Board) -> str | None:
@@ -336,12 +373,28 @@ def _game_over_message(board: chess.Board) -> str | None:
     return "Draw"
 
 
+def _describe_last_move(board: chess.Board) -> str | None:
+    """
+    If `board` was reached by playing a move (i.e. it has history in
+    board.move_stack - true for any board built via .copy()/.push() rather
+    than parsed fresh from a FEN string), returns a description of that
+    move. Returns None for a board with no move history (e.g. the root of
+    a freshly-loaded position, where nothing was "just played").
+    """
+    if not board.move_stack:
+        return None
+    board_before = board.copy()
+    last_move = board_before.pop()
+    return describe_move(board_before, last_move, board)
+
+
 def analyze_position(board: "chess.Board") -> PositionReport:
     """Runs all rule-based analyses and returns a structured PositionReport."""
     checks, captures = _analyze_checks_and_captures(board)
     pawn_structure = _analyze_pawn_structure(board)
     return PositionReport(
         side_to_move=_color_name(board.turn),
+        move_played=_describe_last_move(board),
         checks=checks,
         captures=captures,
         attacked_pieces=_analyze_attacked_pieces(board),
@@ -357,12 +410,17 @@ def analyze_position(board: "chess.Board") -> PositionReport:
 
 def generate_commentary(board: "chess.Board") -> str:
     """Runs all rule-based analyses and renders them as readable text."""
+    move_desc = _describe_last_move(board)
+
     game_over = _game_over_message(board)
     if game_over is not None:
-        return game_over
+        return f"{move_desc} {game_over}" if move_desc else game_over
 
     report = analyze_position(board)
-    sections = [f"{report.side_to_move} to move."]
+    sections = []
+    if move_desc:
+        sections.append(move_desc)
+    sections.append(f"{report.side_to_move} to move.")
 
     # checks, captures, attacks
     lines = list(report.checks)
