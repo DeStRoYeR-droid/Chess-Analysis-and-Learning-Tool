@@ -41,6 +41,7 @@ except ImportError:
     raise
 
 load_dotenv("../.env")
+load_dotenv("/.env")
 
 try:
     from mlx_lm import load, generate

@@ -13,7 +13,7 @@ BOARD_SIZE = SQUARE_SIZE * 8  # re-snap so 8 squares tile it exactly, no leftove
 # For tree generation
 STOCKFISH_DEPTH = 18
 TREE_PLIES = 5
-TOP_K = 5           # 5 x 5 => 25 nodes in the tree.
+TOP_K = 5           # 5 x 5 => 3125 nodes in the tree.
 
 # LLM Specific
 PROMPT_FOLDER_PATH = "../core/prompts"

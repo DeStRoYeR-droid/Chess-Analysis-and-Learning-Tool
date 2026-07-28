@@ -26,9 +26,16 @@ Interactive chess analysis tool built with pygame — game tree exploration, eng
 - [X] Have the ability to import games using [FEN string](https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation)
 - [X] Apply engine + search on the game to generate a game-tree 
 - [X] Generate rule based commentary of the various nodes of the game-tree for commentary generation aspect
-- [ ] Apply various search techniques to see for performance
+- [ ] Apply various search techniques to see for performance - for now it's a simple BFS on top k moves
 
 --- 
+
+### Future Prospects
+- [ ] Opening books - Lot of chess commentary use opening books, currently no opening book knowledge
+- [ ] Search algorithm - Iterative deepening (optional)
+- [ ] Intent analysis - way advanced 
+
+---
 
 ### License
 MIT — see [LICENSE](./LICENSE). Uses python-chess and Stockfish, both GPL-3.0, as external dependencies.
