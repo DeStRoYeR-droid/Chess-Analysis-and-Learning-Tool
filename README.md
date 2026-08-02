@@ -27,6 +27,12 @@ Interactive chess analysis tool built with pygame — game tree exploration, eng
 - [X] Apply engine + search on the game to generate a game-tree 
 - [X] Generate rule based commentary of the various nodes of the game-tree for commentary generation aspect
 - [ ] Apply various search techniques to see for performance - for now it's a simple BFS on top k moves
+- [ ] Compare it with the current research on chess commentary
+- [ ] Develop an API for the same to make a web interface which can then send request
+    - [ ] Develop a front-end to serve the same which contains the following
+        - [ ] Chess board
+        - [ ] Analysis button
+        - [ ] Text area to present both the terminal output and analysis
 
 --- 
 
