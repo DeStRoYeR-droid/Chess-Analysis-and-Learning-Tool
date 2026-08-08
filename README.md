@@ -1,5 +1,12 @@
 # CALT — Chess Analysis & Learning Tool
 
+---
+
+## UPDATE 
+> A concurrent EACL submission, [*"Search-Tree-Grounded Explanations for Chess"*](https://openreview.net/forum?id=FkkemudWzf#discussion) (under review), independently proposes a closely related search-evidence + LLM-explanation architecture — validating the core design principle CALT follows.
+
+---
+
 ***Please note that the programming of this project is done on MacOS, thus some things might be MacOS specific if you want to run it on your end***
 
 Interactive chess analysis tool built with pygame — game tree exploration, engine evaluation, and bitboard-based motif detection for position understanding.
